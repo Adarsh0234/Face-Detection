@@ -43,6 +43,11 @@ face_matched = False
 frame_count = 0
 start_time = time.time()
 
+# --- Scanning Animation Variables ---
+scan_line_y = 0
+scan_direction = 1  # 1 for moving down, -1 for moving up
+scan_speed = 5      # pixels per frame
+
 # --- Main loop to process the webcam feed ---
 while True:
     ret, frame = video_capture.read()
@@ -54,14 +59,14 @@ while True:
     frame_count += 1
 
     # Resize frame for faster processing
-    small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
+    small_frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
     rgb_small_frame = small_frame[:, :, ::-1]
 
     face_locations = []
     face_encodings = []
 
-    # Only process every 3rd frame to reduce load
-    if frame_count % 3 == 0:
+    # Only process every 5th frame
+    if frame_count % 5 == 0:
         face_locations = face_recognition.face_locations(rgb_small_frame)
         face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
         print(f"Detected {len(face_locations)} face(s).")  # Debugging line
@@ -70,10 +75,10 @@ while True:
         match = face_recognition.compare_faces([known_face_encoding], face_encoding)[0]
 
         # Scale back face locations to match original frame size
-        top *= 4
-        right *= 4
-        bottom *= 4
-        left *= 4
+        top *= 2
+        right *= 2
+        bottom *= 2
+        left *= 2
 
         if match:
             color = (0, 255, 0)  # Green for match
@@ -86,16 +91,33 @@ while True:
         # Draw box around the face
         cv2.rectangle(frame, (left, top), (right, bottom), color, 2)
 
-    # Display the frame
-    cv2.imshow("Face Recognition", frame)
+    # --- Draw scanning line animation ---
+    if not face_matched:  # Only scan if not yet matched
+        scan_color = (0, 0, 255)  # Red color
+        thickness = 2
+        cv2.line(frame, (0, scan_line_y), (frame.shape[1], scan_line_y), scan_color, thickness)
 
-    # Smooth display timing
-    delay = 10 if face_locations else 50
-    key = cv2.waitKey(delay) & 0xFF
+        # Update scan line position
+        scan_line_y += scan_direction * scan_speed
+        if scan_line_y >= frame.shape[0] or scan_line_y <= 0:
+            scan_direction *= -1  # Change direction at top/bottom
+
+        # Optional: Show "SCANNING..." text
+        cv2.putText(frame, "SCANNING...", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+
+    else:
+        # Optional: Show "MATCHED!" text when face found
+        cv2.putText(frame, "MATCHED!", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+    # --- Display the frame ---
+    cv2.imshow("Face Recognition with Scanning Animation", frame)
+
+    # Small delay for smooth animation
+    key = cv2.waitKey(1) & 0xFF
 
     # Exit after 4 seconds if face matched, or if user quits
-    if (face_matched and elapsed_time >= 3) or key == ord('q'):
-        print("✅ Closing camera.")
+    if (face_matched and elapsed_time >= 6) or key == ord('q'):
+        print("✅ Closing camera after match and 6 seconds.")
         break
 
 # --- Step 4: Cleanup ---
